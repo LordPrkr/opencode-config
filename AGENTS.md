@@ -1,9 +1,3 @@
-## Who You're Working With
-
-Joel Hooks - co-founder of egghead.io, education at Vercel, builds badass courses via Skill Recordings (Total TypeScript, Pro Tailwind). Deep background in bootstrapping, systems thinking, and developer education. Lives in the Next.js/React ecosystem daily - RSC, server components, suspense, streaming, caching. Skip the tutorials.
-
----
-
 ## TDD COMMANDMENT (NON-NEGOTIABLE)
 
 ```
@@ -109,28 +103,30 @@ The `opencode-swarm-plugin` provides type-safe, context-preserving wrappers. Alw
 **CASS** (cross-agent session search):
 | Tool | Purpose |
 |------|---------|
-| `cass_search` | Search all AI agent histories (query, agent, days, limit) |
-| `cass_view` | View specific session from search results |
-| `cass_expand` | Expand context around a specific line |
-| `cass_health` | Check if index is ready |
-| `cass_index` | Build/rebuild search index |
+| `hivemind_find` | Search all AI agent histories (query, agent, days, limit) |
+| `hivemind_get` | View specific session from search results |
+| `hivemind_get` | Expand context around a specific line |
+| `hivemind_stats` | Check if index is ready |
+| `hivemind_index` | Build/rebuild search index |
 
 **Semantic Memory** (persistent learning):
 | Tool | Purpose |
 |------|---------|
-| `semantic-memory_find` | Search memories by semantic similarity (use `expand=true` for full content) |
-| `semantic-memory_store` | Store learnings with metadata and tags |
-| `semantic-memory_get` | Get a specific memory by ID |
-| `semantic-memory_remove` | Delete outdated/incorrect memories |
-| `semantic-memory_validate` | Validate memory accuracy (resets decay) |
-| `semantic-memory_list` | List stored memories |
-| `semantic-memory_stats` | Show memory statistics |
-| `semantic-memory_migrate` | Migrate database (PGlite 0.2.x → 0.3.x) |
+| `hivemind_find` | Search memories by semantic similarity (use `expand=true` for full content) |
+| `hivemind_store` | Store learnings with metadata and tags |
+| `hivemind_get` | Get a specific memory by ID |
+| `hivemind_remove` | Delete outdated/incorrect memories |
+| `hivemind_validate` | Validate memory accuracy (resets decay) |
+| `hivemind_find` | List stored memories |
+| `hivemind_stats` | Show memory statistics |
+| `hivemind_stats` | Migrate database (PGlite 0.2.x → 0.3.x) |
 
 ### Other Custom Tools
 
-- **swarm_review, swarm_review_feedback** - Coordinator reviews worker output (3-strike rule)
+- **cass_search, cass_view, cass_expand** - Search past agent sessions
+- **semantic-memory_find, semantic-memory_store, semantic-memory_validate** - Persistent learning across sessions
 
+- **swarm_review, swarm_review_feedback** - Coordinator reviews worker output (3-strike rule)
 
 - **typecheck** - TypeScript check with grouped errors
 - **git-context** - Branch, status, commits, ahead/behind in one call
@@ -909,22 +905,22 @@ Search across ALL your AI coding agent histories. Before solving a problem from 
 
 ```bash
 # Search across all agents
-cass_search(query="authentication error", limit=5)
+hivemind_find(query="authentication error", limit=5)
 
 # Filter by agent
-cass_search(query="useEffect cleanup", agent="claude", days=7)
+hivemind_find(query="useEffect cleanup", agent="claude", days=7)
 
 # Check health first (exit 0 = ready)
-cass_health()
+hivemind_stats()
 
 # Build/rebuild index (run if health fails)
-cass_index(full=true)
+hivemind_index(full=true)
 
 # View specific result from search
-cass_view(path="/path/to/session.jsonl", line=42)
+hivemind_get(path="/path/to/session.jsonl", line=42)
 
 # Expand context around a line
-cass_expand(path="/path/to/session.jsonl", line=42, context=5)
+hivemind_get(path="/path/to/session.jsonl", line=42, context=5)
 ````
 
 ### Token Budget
@@ -950,28 +946,28 @@ Store and retrieve learnings across sessions. Memories persist and are searchabl
 
 ```bash
 # Store a learning (include WHY, not just WHAT)
-semantic-memory_store(information="OAuth refresh tokens need 5min buffer before expiry to avoid race conditions", tags="auth,tokens,oauth")
+hivemind_store(information="OAuth refresh tokens need 5min buffer before expiry to avoid race conditions", tags="auth,tokens,oauth")
 
 # Search for relevant memories (truncated preview by default)
-semantic-memory_find(query="token refresh", limit=5)
+hivemind_find(query="token refresh", limit=5)
 
 # Search with full content (when you need details)
-semantic-memory_find(query="token refresh", limit=5, expand=true)
+hivemind_find(query="token refresh", limit=5, expand=true)
 
 # Get a specific memory by ID
-semantic-memory_get(id="mem_123")
+hivemind_get(id="mem_123")
 
 # Delete outdated/incorrect memory
-semantic-memory_remove(id="mem_456")
+hivemind_remove(id="mem_456")
 
 # Validate a memory is still accurate (resets decay timer)
-semantic-memory_validate(id="mem_123")
+hivemind_validate(id="mem_123")
 
 # List all memories
-semantic-memory_list()
+hivemind_find()
 
 # Check stats
-semantic-memory_stats()
+hivemind_stats()
 ```
 
 ### Memory Decay
@@ -1011,14 +1007,14 @@ Agents MUST proactively store learnings. The rule is simple: if you learned it t
 
 ### MANDATORY Triggers
 
-| Situation                        | Action                                               | Consequence of Non-Compliance                 |
-| -------------------------------- | ---------------------------------------------------- | --------------------------------------------- |
-| **Debugging >30min**             | `semantic-memory_store()` with root cause + solution | Next agent wastes another 30min on same issue |
-| **Architectural decision**       | Store reasoning, alternatives, tradeoffs             | Future changes break assumptions, regression  |
-| **Project-specific pattern**     | Store domain rule with examples                      | Inconsistent implementations across codebase  |
-| **Tool/library gotcha**          | Store quirk + workaround                             | Repeated trial-and-error, wasted time         |
-| **Before starting complex work** | `semantic-memory_find()` to check for learnings      | Reinventing wheels, ignoring past failures    |
-| **After /debug-plus success**    | Store prevention pattern if one was created          | Prevention patterns not reused, bugs recur    |
+| Situation                        | Action                                        | Consequence of Non-Compliance                 |
+| -------------------------------- | --------------------------------------------- | --------------------------------------------- |
+| **Debugging >30min**             | `hivemind_store()` with root cause + solution | Next agent wastes another 30min on same issue |
+| **Architectural decision**       | Store reasoning, alternatives, tradeoffs      | Future changes break assumptions, regression  |
+| **Project-specific pattern**     | Store domain rule with examples               | Inconsistent implementations across codebase  |
+| **Tool/library gotcha**          | Store quirk + workaround                      | Repeated trial-and-error, wasted time         |
+| **Before starting complex work** | `hivemind_find()` to check for learnings      | Reinventing wheels, ignoring past failures    |
+| **After /debug-plus success**    | Store prevention pattern if one was created   | Prevention patterns not reused, bugs recur    |
 
 ### Good vs Bad Usage
 
@@ -1026,19 +1022,19 @@ Agents MUST proactively store learnings. The rule is simple: if you learned it t
 
 ```
 # Too generic - this is in React docs
-semantic-memory_store(
+hivemind_store(
   information="useEffect cleanup functions prevent memory leaks",
   metadata="react, hooks"
 )
 
 # No context - WHAT but not WHY
-semantic-memory_store(
+hivemind_store(
   information="Changed auth timeout to 5 minutes",
   metadata="auth"
 )
 
 # Symptom, not root cause
-semantic-memory_store(
+hivemind_store(
   information="Fixed the login bug by adding a null check",
   metadata="bugs"
 )
@@ -1054,31 +1050,31 @@ semantic-memory_store(
 
 ```
 # Root cause + reasoning
-semantic-memory_store(
+hivemind_store(
   information="OAuth refresh tokens need 5min buffer before expiry to avoid race conditions. Without buffer, token refresh can fail mid-request if expiry happens between check and use. Implemented with: if (expiresAt - Date.now() < 300000) refresh(). Affects all API clients using refresh tokens.",
   metadata="auth, oauth, tokens, race-conditions, api-clients"
 )
 
 # Architectural decision with tradeoffs
-semantic-memory_store(
+hivemind_store(
   information="Chose event sourcing for audit log instead of snapshot model. Rationale: immutable event history required for compliance (SOC2). Tradeoff: slower queries (mitigated with materialized views), but guarantees we can reconstruct any historical state. Alternative considered: dual-write to events + snapshots (rejected due to consistency complexity).",
   metadata="architecture, audit-log, event-sourcing, compliance"
 )
 
 # Project-specific domain rule
-semantic-memory_store(
+hivemind_store(
   information="In this project, User.role='admin' does NOT grant deletion rights. Deletion requires explicit User.permissions.canDelete=true. This is because admin role is granted to support staff who shouldn't delete production data. Tripped up 3 agents so far. Check User.permissions, not User.role.",
   metadata="domain-rules, auth, permissions, gotcha"
 )
 
 # Failed approach (anti-pattern)
-semantic-memory_store(
+hivemind_store(
   information="AVOID: Using Zod refinements for async validation. Attempted to validate unique email constraint with .refine(async email => !await db.exists(email)). Problem: Zod runs refinements during parse, blocking the event loop. Solution: validate uniqueness in application layer after parse, return specific validation error. Save Zod for synchronous structural validation only.",
   metadata="zod, validation, async, anti-pattern, performance"
 )
 
 # Tool-specific gotcha
-semantic-memory_store(
+hivemind_store(
   information="Next.js 16 Cache Components: useSearchParams() causes entire component to become dynamic, breaking 'use cache'. Workaround: destructure params in parent Server Component, pass as props to cached child. Example: <CachedChild query={searchParams.query} />. Affects all search/filter UIs.",
   metadata="nextjs, cache-components, dynamic-rendering, searchparams"
 )
@@ -1098,16 +1094,16 @@ semantic-memory_store(
 
 ```bash
 # Specific error message
-semantic-memory_find(query="cannot read property of undefined auth", limit=3)
+hivemind_find(query="cannot read property of undefined auth", limit=3)
 
 # Domain area
-semantic-memory_find(query="authentication tokens refresh", limit=5)
+hivemind_find(query="authentication tokens refresh", limit=5)
 
 # Technology stack
-semantic-memory_find(query="Next.js caching searchParams", limit=3)
+hivemind_find(query="Next.js caching searchParams", limit=3)
 
 # Pattern type
-semantic-memory_find(query="event sourcing materialized views", limit=5)
+hivemind_find(query="event sourcing materialized views", limit=5)
 ```
 
 ### Memory Validation Workflow
@@ -1116,7 +1112,7 @@ When you encounter a memory from search results and confirm it's still accurate:
 
 ```bash
 # Found a memory that helped solve current problem
-semantic-memory_validate(id="mem_xyz123")
+hivemind_validate(id="mem_xyz123")
 ```
 
 **This resets the 90-day decay timer.** Memories that stay relevant get reinforced. Stale memories fade.
@@ -1127,7 +1123,7 @@ The `/debug-plus` command creates prevention patterns. **ALWAYS** store these in
 
 ```bash
 # After debug-plus creates a prevention pattern
-semantic-memory_store(
+hivemind_store(
   information="Prevention pattern for 'headers already sent' error: root cause is async middleware calling next() before awaiting response write. Detection: grep for 'res.send|res.json' followed by 'next()' without await. Prevention: enforce middleware contract - await all async operations before next(). Automated via UBS scan.",
   metadata="debug-plus, prevention-pattern, express, async, middleware"
 )
@@ -1254,10 +1250,10 @@ When coordinating a swarm, you MUST monitor workers and review their output.
 
 ### Review Tools
 
-| Tool | Purpose |
-|------|---------|
-| `swarm_review` | Generate review prompt with epic context, dependencies, and git diff |
-| `swarm_review_feedback` | Send approval/rejection to worker (tracks 3-strike rule) |
+| Tool                    | Purpose                                                              |
+| ----------------------- | -------------------------------------------------------------------- |
+| `swarm_review`          | Generate review prompt with epic context, dependencies, and git diff |
+| `swarm_review_feedback` | Send approval/rejection to worker (tracks 3-strike rule)             |
 
 ### Review Criteria
 
