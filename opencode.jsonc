@@ -2,8 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
 
   // === Models ===
-  "model": "anthropic/claude-opus-4-5",
-  "small_model": "anthropic/claude-haiku-4-5", // title gen, lightweight tasks
+  "model": "opencode/claude-opus-4-5",
+  "small_model": "opencode/claude-haiku-4-5", // title gen, lightweight tasks
   "autoupdate": true,
 
   // === TUI ===
@@ -108,7 +108,7 @@
     },
     // Plan agent - read-only analysis, no file writes
     "plan": {
-      "model": "anthropic/claude-sonnet-4-5", // Sonnet for planning (cheaper)
+      "model": "opencode/claude-sonnet-4-5", // Sonnet for planning (cheaper)
       "temperature": 0.1,
       "tools": {
         "write": false,
@@ -136,7 +136,7 @@
     },
     // Security agent - read-only vulnerability scanning with Snyk
     "security": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "opencode/claude-sonnet-4-5",
       "temperature": 0.1, // Low temp for deterministic security analysis
       "tools": {
         "write": false,
@@ -147,7 +147,7 @@
     },
     // Test writer agent - generates comprehensive test suites
     "test-writer": {
-      "model": "anthropic/claude-sonnet-4-5",
+      "model": "opencode/claude-sonnet-4-5",
       "temperature": 0.2, // Slight creativity for test case generation
       "permission": {
         "write": {
@@ -162,7 +162,7 @@
     },
     // Docs agent - documentation writer (cheaper model)
     "docs": {
-      "model": "anthropic/claude-haiku-4-5", // Haiku for cost-effective docs
+      "model": "opencode/claude-haiku-4-5", // Haiku for cost-effective docs
       "temperature": 0.3, // More creativity for readable documentation
       "permission": {
         "write": {
