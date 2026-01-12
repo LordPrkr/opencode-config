@@ -49,7 +49,12 @@ import { homedir } from "node:os";
 /**
  * Subtask lifecycle status derived from events
  */
-type SubtaskStatus = "created" | "spawned" | "in_progress" | "completed" | "closed";
+type SubtaskStatus =
+  | "created"
+  | "spawned"
+  | "in_progress"
+  | "completed"
+  | "closed";
 
 /**
  * Subtask state projected from events
@@ -139,7 +144,14 @@ function projectSwarmState(events: ToolCallEvent[]): SwarmProjection {
   const state: SwarmProjection = {
     isSwarm: false,
     subtasks: new Map(),
-    counts: { total: 0, created: 0, spawned: 0, inProgress: 0, completed: 0, closed: 0 },
+    counts: {
+      total: 0,
+      created: 0,
+      spawned: 0,
+      inProgress: 0,
+      completed: 0,
+      closed: 0,
+    },
   };
 
   let hasEpic = false;
@@ -151,10 +163,18 @@ function projectSwarmState(events: ToolCallEvent[]): SwarmProjection {
     switch (event.tool) {
       case "hive_create_epic": {
         const epicId = parseEpicId(event.output);
-        const epicTitle = typeof event.input.epic_title === "string" ? event.input.epic_title : undefined;
+        const epicTitle =
+          typeof event.input.epic_title === "string"
+            ? event.input.epic_title
+            : undefined;
 
         if (epicId) {
-          state.epic = { id: epicId, title: epicTitle || "Unknown Epic", status: "open", createdAt: event.timestamp };
+          state.epic = {
+            id: epicId,
+            title: epicTitle || "Unknown Epic",
+            status: "open",
+            createdAt: event.timestamp,
+          };
           hasEpic = true;
 
           const subtasks = event.input.subtasks;
@@ -170,7 +190,12 @@ function projectSwarmState(events: ToolCallEvent[]): SwarmProjection {
           const subtaskIds = parseSubtaskIds(event.output);
           for (const id of subtaskIds) {
             if (!state.subtasks.has(id)) {
-              state.subtasks.set(id, { id, title: "Unknown", status: "created", files: [] });
+              state.subtasks.set(id, {
+                id,
+                title: "Unknown",
+                status: "created",
+                files: [],
+              });
               state.counts.total++;
               state.counts.created++;
             }
@@ -180,56 +205,91 @@ function projectSwarmState(events: ToolCallEvent[]): SwarmProjection {
       }
 
       case "swarm_spawn_subtask": {
-        const beadId = typeof event.input.bead_id === "string" ? event.input.bead_id : undefined;
-        const title = typeof event.input.subtask_title === "string" ? event.input.subtask_title : "Unknown";
-        const files = Array.isArray(event.input.files) ? (event.input.files as string[]) : [];
+        const beadId =
+          typeof event.input.bead_id === "string"
+            ? event.input.bead_id
+            : undefined;
+        const title =
+          typeof event.input.subtask_title === "string"
+            ? event.input.subtask_title
+            : "Unknown";
+        const files = Array.isArray(event.input.files)
+          ? (event.input.files as string[])
+          : [];
 
         if (beadId) {
           hasSpawn = true;
           const existing = state.subtasks.get(beadId);
           if (existing) {
-            if (existing.status === "created") { state.counts.created--; state.counts.spawned++; }
+            if (existing.status === "created") {
+              state.counts.created--;
+              state.counts.spawned++;
+            }
             existing.status = "spawned";
             existing.title = title;
             existing.files = files;
             existing.spawnedAt = event.timestamp;
           } else {
-            state.subtasks.set(beadId, { id: beadId, title, status: "spawned", files, spawnedAt: event.timestamp });
+            state.subtasks.set(beadId, {
+              id: beadId,
+              title,
+              status: "spawned",
+              files,
+              spawnedAt: event.timestamp,
+            });
             state.counts.total++;
             state.counts.spawned++;
           }
 
-          const epicId = typeof event.input.epic_id === "string" ? event.input.epic_id : undefined;
+          const epicId =
+            typeof event.input.epic_id === "string"
+              ? event.input.epic_id
+              : undefined;
           if (epicId && !state.epic) {
-            state.epic = { id: epicId, title: "Unknown Epic", status: "in_progress", createdAt: event.timestamp };
+            state.epic = {
+              id: epicId,
+              title: "Unknown Epic",
+              status: "in_progress",
+              createdAt: event.timestamp,
+            };
           }
         }
         break;
       }
 
       case "hive_start": {
-        const id = typeof event.input.id === "string" ? event.input.id : undefined;
+        const id =
+          typeof event.input.id === "string" ? event.input.id : undefined;
         if (id) {
           const subtask = state.subtasks.get(id);
-          if (subtask && subtask.status !== "completed" && subtask.status !== "closed") {
+          if (
+            subtask &&
+            subtask.status !== "completed" &&
+            subtask.status !== "closed"
+          ) {
             if (subtask.status === "created") state.counts.created--;
             else if (subtask.status === "spawned") state.counts.spawned--;
             subtask.status = "in_progress";
             state.counts.inProgress++;
           }
-          if (state.epic && state.epic.id === id) state.epic.status = "in_progress";
+          if (state.epic && state.epic.id === id)
+            state.epic.status = "in_progress";
         }
         break;
       }
 
       case "swarm_complete": {
-        const beadId = typeof event.input.bead_id === "string" ? event.input.bead_id : undefined;
+        const beadId =
+          typeof event.input.bead_id === "string"
+            ? event.input.bead_id
+            : undefined;
         if (beadId) {
           const subtask = state.subtasks.get(beadId);
           if (subtask && subtask.status !== "closed") {
             if (subtask.status === "created") state.counts.created--;
             else if (subtask.status === "spawned") state.counts.spawned--;
-            else if (subtask.status === "in_progress") state.counts.inProgress--;
+            else if (subtask.status === "in_progress")
+              state.counts.inProgress--;
             subtask.status = "completed";
             subtask.completedAt = event.timestamp;
             state.counts.completed++;
@@ -239,13 +299,15 @@ function projectSwarmState(events: ToolCallEvent[]): SwarmProjection {
       }
 
       case "hive_close": {
-        const id = typeof event.input.id === "string" ? event.input.id : undefined;
+        const id =
+          typeof event.input.id === "string" ? event.input.id : undefined;
         if (id) {
           const subtask = state.subtasks.get(id);
           if (subtask) {
             if (subtask.status === "created") state.counts.created--;
             else if (subtask.status === "spawned") state.counts.spawned--;
-            else if (subtask.status === "in_progress") state.counts.inProgress--;
+            else if (subtask.status === "in_progress")
+              state.counts.inProgress--;
             else if (subtask.status === "completed") state.counts.completed--;
             subtask.status = "closed";
             state.counts.closed++;
@@ -260,7 +322,9 @@ function projectSwarmState(events: ToolCallEvent[]): SwarmProjection {
           const parsed = JSON.parse(event.output);
           if (parsed.agent_name) state.coordinatorName = parsed.agent_name;
           if (parsed.project_key) state.projectPath = parsed.project_key;
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
         break;
       }
     }
@@ -285,8 +349,12 @@ function hasSwarmSignature(events: ToolCallEvent[]): boolean {
 /** Check if swarm is still active (has pending work) */
 function isSwarmActive(projection: SwarmProjection): boolean {
   if (!projection.isSwarm) return false;
-  return projection.counts.created > 0 || projection.counts.spawned > 0 ||
-         projection.counts.inProgress > 0 || projection.counts.completed > 0;
+  return (
+    projection.counts.created > 0 ||
+    projection.counts.spawned > 0 ||
+    projection.counts.inProgress > 0 ||
+    projection.counts.completed > 0
+  );
 }
 
 /** Get human-readable swarm status summary */
@@ -295,8 +363,14 @@ function getSwarmSummary(projection: SwarmProjection): string {
   const { counts, epic } = projection;
   const parts: string[] = [];
   if (epic) parts.push(`Epic: ${epic.id} - ${epic.title} [${epic.status}]`);
-  parts.push(`Subtasks: ${counts.total} total (${counts.spawned} spawned, ${counts.inProgress} in_progress, ${counts.completed} completed, ${counts.closed} closed)`);
-  parts.push(isSwarmActive(projection) ? "Status: ACTIVE - has pending work" : "Status: COMPLETE - all work closed");
+  parts.push(
+    `Subtasks: ${counts.total} total (${counts.spawned} spawned, ${counts.inProgress} in_progress, ${counts.completed} completed, ${counts.closed} closed)`,
+  );
+  parts.push(
+    isSwarmActive(projection)
+      ? "Status: ACTIVE - has pending work"
+      : "Status: COMPLETE - all work closed",
+  );
   return parts.join("\n");
 }
 
@@ -324,7 +398,7 @@ function ensureLogDir(): void {
 
 /**
  * Log a compaction event to file (JSON lines format, compatible with `swarm log`)
- * 
+ *
  * @param level - Log level (info, debug, warn, error)
  * @param msg - Log message
  * @param data - Additional structured data
@@ -349,43 +423,193 @@ function logCompaction(
 }
 
 /**
- * Capture compaction event for evals via CLI
- * 
- * Shells out to `swarm capture` command to avoid import issues.
- * The CLI handles all the logic - plugin wrapper stays dumb.
- * 
+ * Get date-stamped log file path
+ * Format: ~/.config/swarm-tools/logs/{type}-YYYY-MM-DD.log
+ */
+function getDateStampedLogPath(type: "tools" | "swarmmail" | "errors"): string {
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  return join(LOG_DIR, `${type}-${today}.log`);
+}
+
+/**
+ * Rotate old log files (delete files older than 7 days)
+ *
+ * Runs silently - never breaks the plugin if rotation fails.
+ */
+function rotateLogFiles(): void {
+  try {
+    ensureLogDir();
+    const { readdirSync, unlinkSync, statSync } = require("node:fs");
+    const files = readdirSync(LOG_DIR);
+    const now = Date.now();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+    for (const file of files) {
+      // Only rotate date-stamped files (tools-*, swarmmail-*, errors-*)
+      if (!/^(tools|swarmmail|errors)-\d{4}-\d{2}-\d{2}\.log$/.test(file)) {
+        continue;
+      }
+
+      const filePath = join(LOG_DIR, file);
+      const stats = statSync(filePath);
+      const age = now - stats.mtimeMs;
+
+      if (age > sevenDaysMs) {
+        unlinkSync(filePath);
+      }
+    }
+  } catch {
+    // Silently fail - rotation failures shouldn't break the plugin
+  }
+}
+
+/**
+ * Log a tool invocation to date-stamped file
+ *
+ * @param toolName - Tool name (e.g., "hive_create", "swarm_status")
+ * @param args - Tool arguments
+ * @param result - Tool result (optional, for successful calls)
+ * @param error - Error message (optional, for failed calls)
+ */
+function logTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  result?: string,
+  error?: string,
+): void {
+  try {
+    ensureLogDir();
+    rotateLogFiles(); // Rotate on every log call (cheap operation)
+
+    const logPath = getDateStampedLogPath("tools");
+    const entry = JSON.stringify({
+      time: new Date().toISOString(),
+      level: error ? "error" : "info",
+      msg: `tool_call: ${toolName}`,
+      tool: toolName,
+      args,
+      ...(result && { result }),
+      ...(error && { error }),
+    });
+
+    appendFileSync(logPath, entry + "\n");
+  } catch {
+    // Silently fail - logging should never break the plugin
+  }
+}
+
+/**
+ * Log a Swarm Mail event to date-stamped file
+ *
+ * @param event - Event type (e.g., "message_sent", "inbox_fetched")
+ * @param data - Event data
+ */
+function logSwarmMail(event: string, data: Record<string, unknown>): void {
+  try {
+    ensureLogDir();
+    rotateLogFiles();
+
+    const logPath = getDateStampedLogPath("swarmmail");
+    const entry = JSON.stringify({
+      time: new Date().toISOString(),
+      level: "info",
+      msg: event,
+      ...data,
+    });
+
+    appendFileSync(logPath, entry + "\n");
+  } catch {
+    // Silently fail
+  }
+}
+
+/**
+ * Log an error to date-stamped file
+ *
+ * @param error - Error message
+ * @param data - Additional error context
+ */
+function logError(error: string, data?: Record<string, unknown>): void {
+  try {
+    ensureLogDir();
+    rotateLogFiles();
+
+    const logPath = getDateStampedLogPath("errors");
+    const entry = JSON.stringify({
+      time: new Date().toISOString(),
+      level: "error",
+      msg: error,
+      ...data,
+    });
+
+    appendFileSync(logPath, entry + "\n");
+  } catch {
+    // Silently fail
+  }
+}
+
+/**
+ * Capture compaction event for evals (INLINED - do not import from opencode-swarm-plugin)
+ *
+ * Writes COMPACTION events directly to session JSONL file.
+ * This is inlined to avoid import issues - plugin wrapper must be 100% self-contained.
+ *
+ * Matches the structure of captureCompactionEvent from eval-capture.ts but writes
+ * ONLY to JSONL (not libSQL) to avoid swarm-mail dependency.
+ *
  * @param sessionID - Session ID
  * @param epicID - Epic ID (or "unknown" if not detected)
- * @param compactionType - Event type (detection_complete, prompt_generated, context_injected)
+ * @param compactionType - Event type (detection_complete, prompt_generated, context_injected, resumption_started, tool_call_tracked)
  * @param payload - Event-specific data (full prompts, detection results, etc.)
  */
 async function captureCompaction(
   sessionID: string,
   epicID: string,
-  compactionType: "detection_complete" | "prompt_generated" | "context_injected",
+  compactionType:
+    | "detection_complete"
+    | "prompt_generated"
+    | "context_injected"
+    | "resumption_started"
+    | "tool_call_tracked",
   payload: any,
 ): Promise<void> {
   try {
-    // Shell out to CLI - no imports needed, version always matches
-    const args = [
-      "capture",
-      "--session", sessionID,
-      "--epic", epicID,
-      "--type", compactionType,
-      "--payload", JSON.stringify(payload),
-    ];
-    
-    const proc = spawn(SWARM_CLI, args, {
-      env: { ...process.env, SWARM_PROJECT_DIR: projectDirectory },
-      stdio: ["ignore", "ignore", "ignore"], // Fire and forget
+    // Build the CoordinatorEvent object matching eval-capture.ts schema
+    const event = {
+      session_id: sessionID,
+      epic_id: epicID,
+      timestamp: new Date().toISOString(),
+      event_type: "COMPACTION",
+      compaction_type: compactionType,
+      payload: payload,
+    };
+
+    // Session directory: ~/.config/swarm-tools/sessions/
+    const sessionDir =
+      process.env.SWARM_SESSIONS_DIR ||
+      join(homedir(), ".config", "swarm-tools", "sessions");
+
+    // Ensure directory exists
+    if (!existsSync(sessionDir)) {
+      mkdirSync(sessionDir, { recursive: true });
+    }
+
+    // Write to JSONL (append mode)
+    const sessionPath = join(sessionDir, `${sessionID}.jsonl`);
+    const line = `${JSON.stringify(event)}\n`;
+    appendFileSync(sessionPath, line, "utf-8");
+
+    logCompaction("debug", "compaction_event_captured", {
+      session_id: sessionID,
+      epic_id: epicID,
+      compaction_type: compactionType,
+      session_path: sessionPath,
     });
-    
-    // Don't wait - capture is non-blocking
-    proc.unref();
   } catch (err) {
     // Non-fatal - capture failures shouldn't break compaction
     logCompaction("warn", "compaction_capture_failed", {
       session_id: sessionID,
+      epic_id: epicID,
       compaction_type: compactionType,
       error: err instanceof Error ? err.message : String(err),
     });
@@ -409,7 +633,7 @@ let sdkClient: any = null;
  *
  * Spawns `swarm tool <name> --json '<args>'` and returns the result.
  * Passes session context via environment variables.
- * 
+ *
  * IMPORTANT: Runs in projectDirectory (set by OpenCode) not process.cwd()
  */
 async function execTool(
@@ -451,6 +675,20 @@ async function execTool(
         try {
           const result = JSON.parse(stdout);
           if (result.success && result.data !== undefined) {
+            // Log successful tool call
+            logTool(
+              name,
+              args,
+              typeof result.data === "string"
+                ? result.data
+                : JSON.stringify(result.data),
+            );
+
+            // Log Swarm Mail events separately
+            if (name.startsWith("swarmmail_")) {
+              logSwarmMail(`tool_${name}`, { args, result: result.data });
+            }
+
             // Unwrap the data for cleaner tool output
             resolve(
               typeof result.data === "string"
@@ -460,39 +698,74 @@ async function execTool(
           } else if (!result.success && result.error) {
             // Tool returned an error in JSON format
             // Handle both string errors and object errors with .message
-            const errorMsg = typeof result.error === "string" 
-              ? result.error 
-              : (result.error.message || "Tool execution failed");
+            const errorMsg =
+              typeof result.error === "string"
+                ? result.error
+                : result.error.message || "Tool execution failed";
+
+            // Log failed tool call
+            logTool(name, args, undefined, errorMsg);
+            logError(`Tool ${name} failed`, { args, error: errorMsg });
+
             reject(new Error(errorMsg));
           } else {
+            // Log successful (non-standard response)
+            logTool(name, args, stdout);
             resolve(stdout);
           }
         } catch {
+          // Log successful (unparseable response)
+          logTool(name, args, stdout);
           resolve(stdout);
         }
       } else if (code === 2) {
-        reject(new Error(`Unknown tool: ${name}`));
+        const errorMsg = `Unknown tool: ${name}`;
+        logError(errorMsg, { args });
+        reject(new Error(errorMsg));
       } else if (code === 3) {
-        reject(new Error(`Invalid JSON args: ${stderr}`));
+        const errorMsg = `Invalid JSON args: ${stderr}`;
+        logError(errorMsg, { tool: name, args });
+        reject(new Error(errorMsg));
       } else {
         // Tool returned error
         try {
           const result = JSON.parse(stdout);
           if (!result.success && result.error) {
             // Handle both string errors and object errors with .message
-            const errorMsg = typeof result.error === "string"
-              ? result.error
-              : (result.error.message || `Tool failed with code ${code}`);
+            const errorMsg =
+              typeof result.error === "string"
+                ? result.error
+                : result.error.message || `Tool failed with code ${code}`;
+
+            logTool(name, args, undefined, errorMsg);
+            logError(`Tool ${name} failed with code ${code}`, {
+              args,
+              error: errorMsg,
+            });
+
             reject(new Error(errorMsg));
           } else {
-            reject(
-              new Error(stderr || stdout || `Tool failed with code ${code}`),
-            );
+            const errorMsg =
+              stderr || stdout || `Tool failed with code ${code}`;
+            logTool(name, args, undefined, errorMsg);
+            logError(`Tool ${name} failed with code ${code}`, {
+              args,
+              stderr,
+              stdout,
+            });
+
+            reject(new Error(errorMsg));
           }
         } catch {
-          reject(
-            new Error(stderr || stdout || `Tool failed with code ${code}`),
-          );
+          const errorMsg = stderr || stdout || `Tool failed with code ${code}`;
+          logTool(name, args, undefined, errorMsg);
+          logError(`Tool ${name} failed with code ${code}`, {
+            args,
+            stderr,
+            stdout,
+          });
+
+          reject(new Error(errorMsg));
         }
       }
     });
@@ -651,11 +924,26 @@ PREFER THIS OVER hive_query when you need to:
 - Find cells matching criteria
 - Look up a cell by partial ID`,
   args: {
-    id: tool.schema.string().optional().describe("Partial or full cell ID to look up"),
-    status: tool.schema.enum(["open", "in_progress", "blocked", "closed"]).optional().describe("Filter by status"),
-    type: tool.schema.enum(["task", "bug", "feature", "epic", "chore"]).optional().describe("Filter by type"),
-    ready: tool.schema.boolean().optional().describe("If true, return only the next unblocked cell"),
-    limit: tool.schema.number().optional().describe("Max cells to return (default 20)"),
+    id: tool.schema
+      .string()
+      .optional()
+      .describe("Partial or full cell ID to look up"),
+    status: tool.schema
+      .enum(["open", "in_progress", "blocked", "closed"])
+      .optional()
+      .describe("Filter by status"),
+    type: tool.schema
+      .enum(["task", "bug", "feature", "epic", "chore"])
+      .optional()
+      .describe("Filter by type"),
+    ready: tool.schema
+      .boolean()
+      .optional()
+      .describe("If true, return only the next unblocked cell"),
+    limit: tool.schema
+      .number()
+      .optional()
+      .describe("Max cells to return (default 20)"),
   },
   execute: (args, ctx) => execTool("hive_cells", args, ctx),
 });
@@ -667,6 +955,44 @@ const beads_link_thread = tool({
     thread_id: tool.schema.string().describe("Agent Mail thread ID"),
   },
   execute: (args, ctx) => execTool("beads_link_thread", args, ctx),
+});
+
+// =============================================================================
+// Session Handoff Tools (Chainlink-inspired)
+// =============================================================================
+
+const hive_session_start = tool({
+  description: `Start a new work session with optional handoff notes from previous session.
+
+Chainlink-inspired session management for context preservation across sessions.
+Returns previous session's handoff notes if available.
+
+Credit: Chainlink session handoff pattern from https://github.com/dollspace-gay/chainlink`,
+  args: {
+    active_cell_id: tool.schema
+      .string()
+      .optional()
+      .describe("ID of cell being worked on"),
+  },
+  execute: (args, ctx) => execTool("hive_session_start", args, ctx),
+});
+
+const hive_session_end = tool({
+  description: `End current session with handoff notes for next session.
+
+Save context for the next agent/session to pick up where you left off.
+Include: what was done, what's next, any blockers or gotchas.
+
+Credit: Chainlink session handoff pattern from https://github.com/dollspace-gay/chainlink`,
+  args: {
+    handoff_notes: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "Notes for next session (e.g., 'Completed X. Next: do Y. Watch out for Z.')",
+      ),
+  },
+  execute: (args, ctx) => execTool("hive_session_end", args, ctx),
 });
 
 // =============================================================================
@@ -760,6 +1086,22 @@ const swarmmail_release = tool({
       .describe("Reservation IDs"),
   },
   execute: (args, ctx) => execTool("swarmmail_release", args, ctx),
+});
+
+const swarmmail_release_all = tool({
+  description:
+    "Release all file reservations in the project (coordinator override)",
+  args: {},
+  execute: (args, ctx) => execTool("swarmmail_release_all", args, ctx),
+});
+
+const swarmmail_release_agent = tool({
+  description:
+    "Release all file reservations for a specific agent (coordinator override)",
+  args: {
+    agent_name: tool.schema.string().describe("Target agent name"),
+  },
+  execute: (args, ctx) => execTool("swarmmail_release_agent", args, ctx),
 });
 
 const swarmmail_ack = tool({
@@ -957,22 +1299,24 @@ const swarm_progress = tool({
 
 const swarm_complete = tool({
   description:
-    "Mark subtask complete with Verification Gate. Runs UBS scan, typecheck, and tests before allowing completion.",
+    "Mark subtask complete with Verification Gate. Runs typecheck and tests before allowing completion.",
   args: {
     project_key: tool.schema.string().describe("Project key"),
     agent_name: tool.schema.string().describe("Agent name"),
     bead_id: tool.schema.string().describe("Cell ID"),
     summary: tool.schema.string().describe("Completion summary"),
-    evaluation: tool.schema.string().optional().describe("Self-evaluation JSON"),
+    evaluation: tool.schema
+      .string()
+      .optional()
+      .describe("Self-evaluation JSON"),
     files_touched: tool.schema
       .array(tool.schema.string())
       .optional()
       .describe("Files modified - will be verified"),
-    skip_ubs_scan: tool.schema.boolean().optional().describe("Skip UBS scan"),
     skip_verification: tool.schema
       .boolean()
       .optional()
-      .describe("Skip ALL verification (UBS, typecheck, tests)"),
+      .describe("Skip ALL verification (typecheck, tests)"),
     skip_review: tool.schema
       .boolean()
       .optional()
@@ -1101,7 +1445,9 @@ const swarm_worktree_create = tool({
   description:
     "Create a git worktree for isolated task execution. Worker operates in worktree, not main branch.",
   args: {
-    project_path: tool.schema.string().describe("Absolute path to project root"),
+    project_path: tool.schema
+      .string()
+      .describe("Absolute path to project root"),
     task_id: tool.schema.string().describe("Task/bead ID (e.g., bd-abc123.1)"),
     start_commit: tool.schema
       .string()
@@ -1114,7 +1460,9 @@ const swarm_worktree_merge = tool({
   description:
     "Cherry-pick commits from worktree back to main branch. Call after worker completes.",
   args: {
-    project_path: tool.schema.string().describe("Absolute path to project root"),
+    project_path: tool.schema
+      .string()
+      .describe("Absolute path to project root"),
     task_id: tool.schema.string().describe("Task/bead ID"),
     start_commit: tool.schema
       .string()
@@ -1128,8 +1476,13 @@ const swarm_worktree_cleanup = tool({
   description:
     "Remove a worktree after completion or abort. Idempotent - safe to call multiple times.",
   args: {
-    project_path: tool.schema.string().describe("Absolute path to project root"),
-    task_id: tool.schema.string().optional().describe("Task/bead ID to clean up"),
+    project_path: tool.schema
+      .string()
+      .describe("Absolute path to project root"),
+    task_id: tool.schema
+      .string()
+      .optional()
+      .describe("Task/bead ID to clean up"),
     cleanup_all: tool.schema
       .boolean()
       .optional()
@@ -1141,7 +1494,9 @@ const swarm_worktree_cleanup = tool({
 const swarm_worktree_list = tool({
   description: "List all active worktrees for a project",
   args: {
-    project_path: tool.schema.string().describe("Absolute path to project root"),
+    project_path: tool.schema
+      .string()
+      .describe("Absolute path to project root"),
   },
   execute: (args, ctx) => execTool("swarm_worktree_list", args, ctx),
 });
@@ -1182,6 +1537,33 @@ const swarm_review_feedback = tool({
       .describe("JSON array of ReviewIssue objects (for needs_changes)"),
   },
   execute: (args, ctx) => execTool("swarm_review_feedback", args, ctx),
+});
+
+// =============================================================================
+// Adversarial Review Tools (VDD/Chainlink-inspired)
+// =============================================================================
+
+const swarm_adversarial_review = tool({
+  description: `VDD-style adversarial code review using hostile, fresh-context agent.
+
+Spawns Sarcasmotron - a hyper-critical reviewer with zero tolerance for slop.
+Fresh context per review prevents "relationship drift" (becoming lenient over time).
+
+Returns structured critique with verdict:
+- APPROVED: Code is solid
+- NEEDS_CHANGES: Real issues found
+- HALLUCINATING: Adversary invented issues (code is excellent!)
+
+Credit: VDD methodology from https://github.com/Vomikron/VDD
+Credit: Chainlink patterns from https://github.com/dollspace-gay/chainlink`,
+  args: {
+    diff: tool.schema.string().describe("Git diff of changes to review"),
+    test_output: tool.schema
+      .string()
+      .optional()
+      .describe("Test output (optional)"),
+  },
+  execute: (args, ctx) => execTool("swarm_adversarial_review", args, ctx),
 });
 
 // =============================================================================
@@ -1298,23 +1680,30 @@ const skills_execute = tool({
 // =============================================================================
 
 const swarm_get_strategy_insights = tool({
-  description: "Get strategy success rates for decomposition planning. Use this when planning task decomposition to see which strategies (file-based, feature-based, risk-based) have historically succeeded or failed. Returns success rates and recommendations based on past swarm outcomes.",
+  description:
+    "Get strategy success rates for decomposition planning. Use this when planning task decomposition to see which strategies (file-based, feature-based, risk-based) have historically succeeded or failed. Returns success rates and recommendations based on past swarm outcomes.",
   args: {
-    task: tool.schema.string().describe("Task description to analyze for strategy recommendation"),
+    task: tool.schema
+      .string()
+      .describe("Task description to analyze for strategy recommendation"),
   },
   execute: (args, ctx) => execTool("swarm_get_strategy_insights", args, ctx),
 });
 
 const swarm_get_file_insights = tool({
-  description: "Get file-specific gotchas for worker context. Use this when assigning files to workers to warn them about historical failure patterns. Queries past outcomes and semantic memory for file-specific learnings (edge cases, common bugs, performance traps).",
+  description:
+    "Get file-specific gotchas for worker context. Use this when assigning files to workers to warn them about historical failure patterns. Queries past outcomes and semantic memory for file-specific learnings (edge cases, common bugs, performance traps).",
   args: {
-    files: tool.schema.array(tool.schema.string()).describe("File paths to get insights for"),
+    files: tool.schema
+      .array(tool.schema.string())
+      .describe("File paths to get insights for"),
   },
   execute: (args, ctx) => execTool("swarm_get_file_insights", args, ctx),
 });
 
 const swarm_get_pattern_insights = tool({
-  description: "Get common failure patterns across swarms. Use this during planning or when debugging stuck swarms to see recurring anti-patterns (type errors, timeouts, conflicts, test failures). Returns top 5 most frequent failure patterns with recommendations.",
+  description:
+    "Get common failure patterns across swarms. Use this during planning or when debugging stuck swarms to see recurring anti-patterns (type errors, timeouts, conflicts, test failures). Returns top 5 most frequent failure patterns with recommendations.",
   args: {},
   execute: (args, ctx) => execTool("swarm_get_pattern_insights", args, ctx),
 });
@@ -1324,9 +1713,12 @@ const swarm_get_pattern_insights = tool({
 // =============================================================================
 
 const cass_search = tool({
-  description: "Search across all AI coding agent histories (Claude, Codex, Cursor, Gemini, Aider, ChatGPT, Cline, OpenCode, Amp, Pi-Agent). Query BEFORE solving problems from scratch - another agent may have already solved it. Returns matching sessions ranked by relevance.",
+  description:
+    "Search across all AI coding agent histories (Claude, Codex, Cursor, Gemini, Aider, ChatGPT, Cline, OpenCode, Amp, Pi-Agent). Query BEFORE solving problems from scratch - another agent may have already solved it. Returns matching sessions ranked by relevance.",
   args: {
-    query: tool.schema.string().describe("Search query (e.g., 'authentication error Next.js')"),
+    query: tool.schema
+      .string()
+      .describe("Search query (e.g., 'authentication error Next.js')"),
     agent: tool.schema
       .string()
       .optional()
@@ -1342,13 +1734,16 @@ const cass_search = tool({
     fields: tool.schema
       .string()
       .optional()
-      .describe("Field selection: 'minimal' for compact output (path, line, agent only)"),
+      .describe(
+        "Field selection: 'minimal' for compact output (path, line, agent only)",
+      ),
   },
   execute: (args, ctx) => execTool("cass_search", args, ctx),
 });
 
 const cass_view = tool({
-  description: "View a specific conversation/session from search results. Use source_path from cass_search output.",
+  description:
+    "View a specific conversation/session from search results. Use source_path from cass_search output.",
   args: {
     path: tool.schema
       .string()
@@ -1362,14 +1757,11 @@ const cass_view = tool({
 });
 
 const cass_expand = tool({
-  description: "Expand context around a specific line in a session. Shows messages before/after.",
+  description:
+    "Expand context around a specific line in a session. Shows messages before/after.",
   args: {
-    path: tool.schema
-      .string()
-      .describe("Path to session file"),
-    line: tool.schema
-      .number()
-      .describe("Line number to expand around"),
+    path: tool.schema.string().describe("Path to session file"),
+    line: tool.schema.number().describe("Line number to expand around"),
     context: tool.schema
       .number()
       .optional()
@@ -1379,13 +1771,15 @@ const cass_expand = tool({
 });
 
 const cass_health = tool({
-  description: "Check if cass index is healthy. Exit 0 = ready, Exit 1 = needs indexing. Run this before searching.",
+  description:
+    "Check if cass index is healthy. Exit 0 = ready, Exit 1 = needs indexing. Run this before searching.",
   args: {},
   execute: (args, ctx) => execTool("cass_health", args, ctx),
 });
 
 const cass_index = tool({
-  description: "Build or rebuild the search index. Run this if health check fails or to pick up new sessions.",
+  description:
+    "Build or rebuild the search index. Run this if health check fails or to pick up new sessions.",
   args: {
     full: tool.schema
       .boolean()
@@ -1396,7 +1790,8 @@ const cass_index = tool({
 });
 
 const cass_stats = tool({
-  description: "Show index statistics - how many sessions, messages, agents indexed.",
+  description:
+    "Show index statistics - how many sessions, messages, agents indexed.",
   args: {},
   execute: (args, ctx) => execTool("cass_stats", args, ctx),
 });
@@ -1406,20 +1801,41 @@ const cass_stats = tool({
 // =============================================================================
 
 const hivemind_store = tool({
-  description: "Store a memory (learnings, decisions, patterns) with metadata and tags. Include WHY, not just WHAT.",
+  description:
+    "Store a memory (learnings, decisions, patterns) with metadata and tags. Include WHY, not just WHAT.",
   args: {
-    information: tool.schema.string().describe("The learning, decision, or pattern to store (include context and reasoning)"),
-    tags: tool.schema.string().optional().describe("Comma-separated tags for categorization (e.g., 'auth,oauth,tokens')"),
+    information: tool.schema
+      .string()
+      .describe(
+        "The learning, decision, or pattern to store (include context and reasoning)",
+      ),
+    tags: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated tags for categorization (e.g., 'auth,oauth,tokens')",
+      ),
   },
   execute: (args, ctx) => execTool("hivemind_store", args, ctx),
 });
 
 const hivemind_find = tool({
-  description: "Search all memories (learnings + sessions) by semantic similarity. Use BEFORE implementing to check if any agent solved it before.",
+  description:
+    "Search all memories (learnings + sessions) by semantic similarity. Use BEFORE implementing to check if any agent solved it before.",
   args: {
-    query: tool.schema.string().describe("Search query (e.g., 'token refresh race condition')"),
-    limit: tool.schema.number().optional().describe("Max results to return (default: 5)"),
-    collection: tool.schema.string().optional().describe("Filter by collection: 'default' (learnings), 'claude', 'cursor', etc., or omit for all"),
+    query: tool.schema
+      .string()
+      .describe("Search query (e.g., 'token refresh race condition')"),
+    limit: tool.schema
+      .number()
+      .optional()
+      .describe("Max results to return (default: 5)"),
+    collection: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "Filter by collection: 'default' (learnings), 'claude', 'cursor', etc., or omit for all",
+      ),
   },
   execute: (args, ctx) => execTool("hivemind_find", args, ctx),
 });
@@ -1449,19 +1865,22 @@ const hivemind_validate = tool({
 });
 
 const hivemind_stats = tool({
-  description: "Memory statistics and health check (documents, chunks, embeddings)",
+  description:
+    "Memory statistics and health check (documents, chunks, embeddings)",
   args: {},
   execute: (args, ctx) => execTool("hivemind_stats", args, ctx),
 });
 
 const hivemind_index = tool({
-  description: "Index AI session directories (automatically indexes ~/.config/opencode/sessions, ~/.cursor-tutor, etc.)",
+  description:
+    "Index AI session directories (automatically indexes ~/.config/opencode/sessions, ~/.cursor-tutor, etc.)",
   args: {},
   execute: (args, ctx) => execTool("hivemind_index", args, ctx),
 });
 
 const hivemind_sync = tool({
-  description: "Sync learnings to .hive/memories.jsonl for git-backed team sharing",
+  description:
+    "Sync learnings to .hive/memories.jsonl for git-backed team sharing",
   args: {},
   execute: (args, ctx) => execTool("hivemind_sync", args, ctx),
 });
@@ -1485,7 +1904,7 @@ interface SwarmDetection {
 
 /**
  * Structured state snapshot for LLM-powered compaction
- * 
+ *
  * This is passed to the lite model to generate a continuation prompt
  * with concrete data instead of just instructions.
  */
@@ -1525,13 +1944,13 @@ interface SwarmStateSnapshot {
 
 /**
  * Query actual swarm state using spawn (like detectSwarm does)
- * 
+ *
  * Returns structured snapshot of current state for LLM compaction.
  * Shells out to swarm CLI to get real data.
  */
 async function querySwarmState(sessionID: string): Promise<SwarmStateSnapshot> {
   const startTime = Date.now();
-  
+
   logCompaction("debug", "query_swarm_state_start", {
     session_id: sessionID,
     project_directory: projectDirectory,
@@ -1540,25 +1959,27 @@ async function querySwarmState(sessionID: string): Promise<SwarmStateSnapshot> {
   try {
     // Query cells via swarm CLI
     const cliStart = Date.now();
-    const cellsResult = await new Promise<{ exitCode: number; stdout: string; stderr: string }>(
-      (resolve) => {
-        const proc = spawn(SWARM_CLI, ["tool", "hive_query"], {
-          cwd: projectDirectory,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-        let stdout = "";
-        let stderr = "";
-        proc.stdout.on("data", (d) => {
-          stdout += d;
-        });
-        proc.stderr.on("data", (d) => {
-          stderr += d;
-        });
-        proc.on("close", (exitCode) =>
-          resolve({ exitCode: exitCode ?? 1, stdout, stderr }),
-        );
-      },
-    );
+    const cellsResult = await new Promise<{
+      exitCode: number;
+      stdout: string;
+      stderr: string;
+    }>((resolve) => {
+      const proc = spawn(SWARM_CLI, ["tool", "hive_query"], {
+        cwd: projectDirectory,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      proc.stdout.on("data", (d) => {
+        stdout += d;
+      });
+      proc.stderr.on("data", (d) => {
+        stderr += d;
+      });
+      proc.on("close", (exitCode) =>
+        resolve({ exitCode: exitCode ?? 1, stdout, stderr }),
+      );
+    });
     const cliDuration = Date.now() - cliStart;
 
     logCompaction("debug", "query_swarm_state_cli_complete", {
@@ -1578,7 +1999,8 @@ async function querySwarmState(sessionID: string): Promise<SwarmStateSnapshot> {
       } catch (parseErr) {
         logCompaction("error", "query_swarm_state_parse_failed", {
           session_id: sessionID,
-          error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+          error:
+            parseErr instanceof Error ? parseErr.message : String(parseErr),
           stdout_preview: cellsResult.stdout.substring(0, 500),
         });
       }
@@ -1606,15 +2028,15 @@ async function querySwarmState(sessionID: string): Promise<SwarmStateSnapshot> {
     logCompaction("debug", "query_swarm_state_epics", {
       session_id: sessionID,
       open_epic_count: openEpics.length,
-      selected_epic: epic ? { id: epic.id, title: epic.title, status: epic.status } : null,
+      selected_epic: epic
+        ? { id: epic.id, title: epic.title, status: epic.status }
+        : null,
     });
 
     // Get subtasks if we have an epic
     const subtasks =
       epic && epic.id
-        ? cells.filter(
-            (c: { parent_id?: string }) => c.parent_id === epic.id,
-          )
+        ? cells.filter((c: { parent_id?: string }) => c.parent_id === epic.id)
         : [];
 
     logCompaction("debug", "query_swarm_state_subtasks", {
@@ -1647,17 +2069,23 @@ async function querySwarmState(sessionID: string): Promise<SwarmStateSnapshot> {
             id: epic.id,
             title: epic.title,
             status: epic.status,
-            subtasks: subtasks.map((s: {
-              id: string;
-              title: string;
-              status: string;
-              files?: string[];
-            }) => ({
-              id: s.id,
-              title: s.title,
-              status: s.status as "open" | "in_progress" | "blocked" | "closed",
-              files: s.files || [],
-            })),
+            subtasks: subtasks.map(
+              (s: {
+                id: string;
+                title: string;
+                status: string;
+                files?: string[];
+              }) => ({
+                id: s.id,
+                title: s.title,
+                status: s.status as
+                  | "open"
+                  | "in_progress"
+                  | "blocked"
+                  | "closed",
+                files: s.files || [],
+              }),
+            ),
           }
         : undefined,
       messages,
@@ -1700,17 +2128,18 @@ async function querySwarmState(sessionID: string): Promise<SwarmStateSnapshot> {
 
 /**
  * Generate compaction prompt using LLM
- * 
+ *
  * Shells out to `opencode run -m <liteModel>` with structured state.
  * Returns markdown continuation prompt or null on failure.
- * 
+ *
  * Timeout: 30 seconds
  */
 async function generateCompactionPrompt(
   snapshot: SwarmStateSnapshot,
 ): Promise<string | null> {
   const startTime = Date.now();
-  const liteModel = process.env.OPENCODE_LITE_MODEL || "anthropic/claude-haiku-4-5";
+  const liteModel =
+    process.env.OPENCODE_LITE_MODEL || "opencode/claude-opus-4-5";
 
   logCompaction("debug", "generate_compaction_prompt_start", {
     session_id: snapshot.sessionID,
@@ -1800,39 +2229,45 @@ Keep the prompt concise but actionable. Use actual data from the snapshot, not p
     });
 
     const llmStart = Date.now();
-    const result = await new Promise<{ exitCode: number; stdout: string; stderr: string }>(
-      (resolve, reject) => {
-        const proc = spawn("opencode", ["run", "-m", liteModel, "--", promptText], {
+    const result = await new Promise<{
+      exitCode: number;
+      stdout: string;
+      stderr: string;
+    }>((resolve, reject) => {
+      const proc = spawn(
+        "opencode",
+        ["run", "-m", liteModel, "--", promptText],
+        {
           cwd: projectDirectory,
           stdio: ["ignore", "pipe", "pipe"],
           timeout: 30000, // 30 second timeout
-        });
+        },
+      );
 
-        let stdout = "";
-        let stderr = "";
+      let stdout = "";
+      let stderr = "";
 
-        proc.stdout.on("data", (d) => {
-          stdout += d;
-        });
-        proc.stderr.on("data", (d) => {
-          stderr += d;
-        });
+      proc.stdout.on("data", (d) => {
+        stdout += d;
+      });
+      proc.stderr.on("data", (d) => {
+        stderr += d;
+      });
 
-        proc.on("close", (exitCode) => {
-          resolve({ exitCode: exitCode ?? 1, stdout, stderr });
-        });
+      proc.on("close", (exitCode) => {
+        resolve({ exitCode: exitCode ?? 1, stdout, stderr });
+      });
 
-        proc.on("error", (err) => {
-          reject(err);
-        });
+      proc.on("error", (err) => {
+        reject(err);
+      });
 
-        // Timeout handling
-        setTimeout(() => {
-          proc.kill("SIGTERM");
-          reject(new Error("LLM compaction timeout (30s)"));
-        }, 30000);
-      },
-    );
+      // Timeout handling
+      setTimeout(() => {
+        proc.kill("SIGTERM");
+        reject(new Error("LLM compaction timeout (30s)"));
+      }, 30000);
+    });
     const llmDuration = Date.now() - llmStart;
 
     logCompaction("debug", "generate_compaction_prompt_llm_complete", {
@@ -1858,7 +2293,7 @@ Keep the prompt concise but actionable. Use actual data from the snapshot, not p
 
     // Extract the prompt from stdout (LLM may wrap in markdown)
     const prompt = result.stdout.trim();
-    
+
     const totalDuration = Date.now() - startTime;
     logCompaction("debug", "generate_compaction_prompt_success", {
       session_id: snapshot.sessionID,
@@ -1901,11 +2336,13 @@ interface SessionScanResult {
 
 /**
  * Scan session messages for swarm tool calls
- * 
+ *
  * Uses SDK client to fetch messages and look for swarm activity.
  * This can detect swarm work even if no cells exist yet.
  */
-async function scanSessionMessages(sessionID: string): Promise<SessionScanResult> {
+async function scanSessionMessages(
+  sessionID: string,
+): Promise<SessionScanResult> {
   const startTime = Date.now();
   const result: SessionScanResult = {
     messageCount: 0,
@@ -1929,7 +2366,9 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
   try {
     // Fetch session messages
     const messagesStart = Date.now();
-    const rawResponse = await sdkClient.session.messages({ path: { id: sessionID } });
+    const rawResponse = await sdkClient.session.messages({
+      path: { id: sessionID },
+    });
     const messagesDuration = Date.now() - messagesStart;
 
     // Log the RAW response to understand its shape
@@ -1939,20 +2378,23 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
       is_array: Array.isArray(rawResponse),
       is_null: rawResponse === null,
       is_undefined: rawResponse === undefined,
-      keys: rawResponse && typeof rawResponse === 'object' ? Object.keys(rawResponse) : [],
+      keys:
+        rawResponse && typeof rawResponse === "object"
+          ? Object.keys(rawResponse)
+          : [],
       raw_preview: JSON.stringify(rawResponse)?.slice(0, 500),
     });
 
     // The response might be wrapped - check common patterns
-    const messages = Array.isArray(rawResponse) 
-      ? rawResponse 
-      : rawResponse?.data 
-      ? rawResponse.data 
-      : rawResponse?.messages 
-      ? rawResponse.messages 
-      : rawResponse?.items
-      ? rawResponse.items
-      : [];
+    const messages = Array.isArray(rawResponse)
+      ? rawResponse
+      : rawResponse?.data
+        ? rawResponse.data
+        : rawResponse?.messages
+          ? rawResponse.messages
+          : rawResponse?.items
+            ? rawResponse.items
+            : [];
 
     result.messageCount = messages?.length ?? 0;
 
@@ -1960,7 +2402,15 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
       session_id: sessionID,
       duration_ms: messagesDuration,
       message_count: result.messageCount,
-      extraction_method: Array.isArray(rawResponse) ? 'direct_array' : rawResponse?.data ? 'data_field' : rawResponse?.messages ? 'messages_field' : rawResponse?.items ? 'items_field' : 'fallback_empty',
+      extraction_method: Array.isArray(rawResponse)
+        ? "direct_array"
+        : rawResponse?.data
+          ? "data_field"
+          : rawResponse?.messages
+            ? "messages_field"
+            : rawResponse?.items
+              ? "items_field"
+              : "fallback_empty",
     });
 
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -2001,7 +2451,7 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
     // Scan messages for tool calls
     let swarmToolCount = 0;
     let highConfidenceCount = 0;
-    
+
     // Debug: collect part types to understand message structure
     const partTypeCounts: Record<string, number> = {};
     let messagesWithParts = 0;
@@ -2018,21 +2468,24 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
       for (const part of message.parts) {
         const partType = part.type || "unknown";
         partTypeCounts[partType] = (partTypeCounts[partType] || 0) + 1;
-        
+
         // Collect first 10 unique part types for debugging
-        if (samplePartTypes.length < 10 && !samplePartTypes.includes(partType)) {
+        if (
+          samplePartTypes.length < 10 &&
+          !samplePartTypes.includes(partType)
+        ) {
           samplePartTypes.push(partType);
         }
-        
+
         // Check if this is a tool call part
         // OpenCode SDK: ToolPart has type="tool", tool=<string name>, state={...}
         if (part.type === "tool") {
           const toolPart = part as ToolPart;
           const toolName = toolPart.tool; // tool name is a string directly
-          
+
           if (toolName && swarmTools.includes(toolName)) {
             swarmToolCount++;
-            
+
             if (highConfidenceTools.has(toolName)) {
               highConfidenceCount++;
             }
@@ -2040,10 +2493,16 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
             // Extract args/output/timestamp from state if available
             const state = toolPart.state;
             const args = state && "input" in state ? state.input : {};
-            const output = state && "output" in state ? state.output : undefined;
-            const timestamp = state && "time" in state && state.time && typeof state.time === "object" && "end" in state.time 
-              ? (state.time as { end: number }).end 
-              : Date.now();
+            const output =
+              state && "output" in state ? state.output : undefined;
+            const timestamp =
+              state &&
+              "time" in state &&
+              state.time &&
+              typeof state.time === "object" &&
+              "end" in state.time
+                ? (state.time as { end: number }).end
+                : Date.now();
 
             result.toolCalls.push({
               toolName,
@@ -2066,7 +2525,7 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
     // PROJECT SWARM STATE FROM EVENTS (deterministic, no heuristics)
     // =======================================================================
     // Convert tool calls to ToolCallEvent format for projection
-    const events: ToolCallEvent[] = result.toolCalls.map(tc => ({
+    const events: ToolCallEvent[] = result.toolCalls.map((tc) => ({
       tool: tc.toolName,
       input: tc.args as Record<string, unknown>,
       output: tc.output || "{}",
@@ -2080,24 +2539,32 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
     // Use projection for swarm detection (deterministic)
     if (projection.isSwarm) {
       result.swarmDetected = true;
-      result.reasons.push(`Swarm signature detected: epic ${projection.epic?.id || "unknown"} with ${projection.counts.total} subtasks`);
-      
+      result.reasons.push(
+        `Swarm signature detected: epic ${projection.epic?.id || "unknown"} with ${projection.counts.total} subtasks`,
+      );
+
       if (isSwarmActive(projection)) {
-        result.reasons.push(`Swarm ACTIVE: ${projection.counts.spawned} spawned, ${projection.counts.inProgress} in_progress, ${projection.counts.completed} completed (not closed)`);
+        result.reasons.push(
+          `Swarm ACTIVE: ${projection.counts.spawned} spawned, ${projection.counts.inProgress} in_progress, ${projection.counts.completed} completed (not closed)`,
+        );
       } else {
-        result.reasons.push(`Swarm COMPLETE: all ${projection.counts.closed} subtasks closed`);
+        result.reasons.push(
+          `Swarm COMPLETE: all ${projection.counts.closed} subtasks closed`,
+        );
       }
     } else if (highConfidenceCount > 0) {
       // Fallback to heuristic detection if no signature but high-confidence tools found
       result.swarmDetected = true;
-      result.reasons.push(`${highConfidenceCount} high-confidence swarm tools (${Array.from(new Set(result.toolCalls.filter(tc => highConfidenceTools.has(tc.toolName)).map(tc => tc.toolName))).join(", ")})`);
+      result.reasons.push(
+        `${highConfidenceCount} high-confidence swarm tools (${Array.from(new Set(result.toolCalls.filter((tc) => highConfidenceTools.has(tc.toolName)).map((tc) => tc.toolName))).join(", ")})`,
+      );
     } else if (swarmToolCount > 0) {
       result.swarmDetected = true;
       result.reasons.push(`${swarmToolCount} swarm-related tools used`);
     }
 
     const totalDuration = Date.now() - startTime;
-    
+
     // Debug: log part type distribution to understand message structure
     logCompaction("debug", "session_scan_part_types", {
       session_id: sessionID,
@@ -2106,7 +2573,7 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
       part_type_counts: partTypeCounts,
       sample_part_types: samplePartTypes,
     });
-    
+
     logCompaction("info", "session_scan_complete", {
       session_id: sessionID,
       duration_ms: totalDuration,
@@ -2116,15 +2583,19 @@ async function scanSessionMessages(sessionID: string): Promise<SessionScanResult
       high_confidence_count: highConfidenceCount,
       swarm_detected: result.swarmDetected,
       reasons: result.reasons,
-      unique_tools: Array.from(new Set(result.toolCalls.map(tc => tc.toolName))),
+      unique_tools: Array.from(
+        new Set(result.toolCalls.map((tc) => tc.toolName)),
+      ),
       // Add projection summary
-      projection_summary: projection.isSwarm ? {
-        epic_id: projection.epic?.id,
-        epic_title: projection.epic?.title,
-        epic_status: projection.epic?.status,
-        is_active: isSwarmActive(projection),
-        counts: projection.counts,
-      } : null,
+      projection_summary: projection.isSwarm
+        ? {
+            epic_id: projection.epic?.id,
+            epic_title: projection.epic?.title,
+            epic_status: projection.epic?.status,
+            is_active: isSwarmActive(projection),
+            counts: projection.counts,
+          }
+        : null,
     });
 
     return result;
@@ -2166,26 +2637,28 @@ async function detectSwarm(): Promise<SwarmDetection> {
 
   try {
     const cliStart = Date.now();
-    const result = await new Promise<{ exitCode: number; stdout: string; stderr: string }>(
-      (resolve) => {
-        // Use swarm tool to query beads
-        const proc = spawn(SWARM_CLI, ["tool", "hive_query"], {
-          cwd: projectDirectory,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-        let stdout = "";
-        let stderr = "";
-        proc.stdout.on("data", (d) => {
-          stdout += d;
-        });
-        proc.stderr.on("data", (d) => {
-          stderr += d;
-        });
-        proc.on("close", (exitCode) =>
-          resolve({ exitCode: exitCode ?? 1, stdout, stderr }),
-        );
-      },
-    );
+    const result = await new Promise<{
+      exitCode: number;
+      stdout: string;
+      stderr: string;
+    }>((resolve) => {
+      // Use swarm tool to query beads
+      const proc = spawn(SWARM_CLI, ["tool", "hive_query"], {
+        cwd: projectDirectory,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      proc.stdout.on("data", (d) => {
+        stdout += d;
+      });
+      proc.stderr.on("data", (d) => {
+        stderr += d;
+      });
+      proc.on("close", (exitCode) =>
+        resolve({ exitCode: exitCode ?? 1, stdout, stderr }),
+      );
+    });
     const cliDuration = Date.now() - cliStart;
 
     logCompaction("debug", "detect_swarm_cli_complete", {
@@ -2201,7 +2674,11 @@ async function detectSwarm(): Promise<SwarmDetection> {
         exit_code: result.exitCode,
         stderr: result.stderr,
       });
-      return { detected: false, confidence: "none", reasons: ["hive_query failed"] };
+      return {
+        detected: false,
+        confidence: "none",
+        reasons: ["hive_query failed"],
+      };
     }
 
     let cells: any[];
@@ -2212,7 +2689,11 @@ async function detectSwarm(): Promise<SwarmDetection> {
         error: parseErr instanceof Error ? parseErr.message : String(parseErr),
         stdout_preview: result.stdout.substring(0, 500),
       });
-      return { detected: false, confidence: "none", reasons: ["hive_query parse failed"] };
+      return {
+        detected: false,
+        confidence: "none",
+        reasons: ["hive_query parse failed"],
+      };
     }
 
     if (!Array.isArray(cells) || cells.length === 0) {
@@ -2220,7 +2701,11 @@ async function detectSwarm(): Promise<SwarmDetection> {
         is_array: Array.isArray(cells),
         length: cells?.length ?? 0,
       });
-      return { detected: false, confidence: "none", reasons: ["no cells found"] };
+      return {
+        detected: false,
+        confidence: "none",
+        reasons: ["no cells found"],
+      };
     }
 
     // Log ALL cells for debugging
@@ -2239,7 +2724,7 @@ async function detectSwarm(): Promise<SwarmDetection> {
 
     // HIGH: Any in_progress cells
     const inProgress = cells.filter(
-      (c: { status: string }) => c.status === "in_progress"
+      (c: { status: string }) => c.status === "in_progress",
     );
     if (inProgress.length > 0) {
       highConfidence = true;
@@ -2253,35 +2738,43 @@ async function detectSwarm(): Promise<SwarmDetection> {
     // MEDIUM: Open subtasks (cells with parent_id)
     const subtasks = cells.filter(
       (c: { status: string; parent_id?: string }) =>
-        c.status === "open" && c.parent_id
+        c.status === "open" && c.parent_id,
     );
     if (subtasks.length > 0) {
       mediumConfidence = true;
       reasons.push(`${subtasks.length} open subtasks`);
       logCompaction("debug", "detect_swarm_open_subtasks", {
         count: subtasks.length,
-        cells: subtasks.map((c: any) => ({ id: c.id, title: c.title, parent_id: c.parent_id })),
+        cells: subtasks.map((c: any) => ({
+          id: c.id,
+          title: c.title,
+          parent_id: c.parent_id,
+        })),
       });
     }
 
     // MEDIUM: Unclosed epics
     const openEpics = cells.filter(
       (c: { status: string; type?: string }) =>
-        c.type === "epic" && c.status !== "closed"
+        c.type === "epic" && c.status !== "closed",
     );
     if (openEpics.length > 0) {
       mediumConfidence = true;
       reasons.push(`${openEpics.length} unclosed epics`);
       logCompaction("debug", "detect_swarm_open_epics", {
         count: openEpics.length,
-        cells: openEpics.map((c: any) => ({ id: c.id, title: c.title, status: c.status })),
+        cells: openEpics.map((c: any) => ({
+          id: c.id,
+          title: c.title,
+          status: c.status,
+        })),
       });
     }
 
     // MEDIUM: Recently updated cells (last hour)
     const oneHourAgo = Date.now() - 60 * 60 * 1000;
     const recentCells = cells.filter(
-      (c: { updated_at?: number }) => c.updated_at && c.updated_at > oneHourAgo
+      (c: { updated_at?: number }) => c.updated_at && c.updated_at > oneHourAgo,
     );
     if (recentCells.length > 0) {
       mediumConfidence = true;
@@ -2289,9 +2782,9 @@ async function detectSwarm(): Promise<SwarmDetection> {
       logCompaction("debug", "detect_swarm_recent_cells", {
         count: recentCells.length,
         one_hour_ago: oneHourAgo,
-        cells: recentCells.map((c: any) => ({ 
-          id: c.id, 
-          title: c.title, 
+        cells: recentCells.map((c: any) => ({
+          id: c.id,
+          title: c.title,
           updated_at: c.updated_at,
           age_minutes: Math.round((Date.now() - c.updated_at) / 60000),
         })),
@@ -2411,7 +2904,7 @@ Extract from session context:
 
 /**
  * Build dynamic swarm state section from snapshot
- * 
+ *
  * This creates a concrete state summary with actual IDs and status
  * to prepend to the static compaction context.
  */
@@ -2421,49 +2914,57 @@ function buildDynamicStateFromSnapshot(snapshot: SwarmStateSnapshot): string {
   }
 
   const parts: string[] = [];
-  
+
   // Header with epic info
   parts.push(`## 🐝 Current Swarm State\n`);
   parts.push(`**Epic:** ${snapshot.epic.id} - ${snapshot.epic.title}`);
   parts.push(`**Status:** ${snapshot.epic.status}`);
   parts.push(`**Project:** ${projectDirectory}\n`);
-  
+
   // Subtask breakdown
   const subtasks = snapshot.epic.subtasks || [];
-  const completed = subtasks.filter(s => s.status === "closed");
-  const inProgress = subtasks.filter(s => s.status === "in_progress");
-  const blocked = subtasks.filter(s => s.status === "blocked");
-  const pending = subtasks.filter(s => s.status === "open");
-  
-  parts.push(`**Progress:** ${completed.length}/${subtasks.length} subtasks complete\n`);
-  
+  const completed = subtasks.filter((s) => s.status === "closed");
+  const inProgress = subtasks.filter((s) => s.status === "in_progress");
+  const blocked = subtasks.filter((s) => s.status === "blocked");
+  const pending = subtasks.filter((s) => s.status === "open");
+
+  parts.push(
+    `**Progress:** ${completed.length}/${subtasks.length} subtasks complete\n`,
+  );
+
   // Immediate actions with real IDs
   parts.push(`## 1️⃣ IMMEDIATE ACTIONS (Do These FIRST)\n`);
-  parts.push(`1. \`swarm_status(epic_id="${snapshot.epic.id}", project_key="${projectDirectory}")\` - Get current state`);
+  parts.push(
+    `1. \`swarm_status(epic_id="${snapshot.epic.id}", project_key="${projectDirectory}")\` - Get current state`,
+  );
   parts.push(`2. \`swarmmail_inbox(limit=5)\` - Check for worker messages`);
-  
+
   if (inProgress.length > 0) {
     parts.push(`3. Review in-progress work when workers complete`);
   }
   if (pending.length > 0) {
     const next = pending[0];
-    parts.push(`4. Spawn next subtask: \`swarm_spawn_subtask(bead_id="${next.id}", ...)\``);
+    parts.push(
+      `4. Spawn next subtask: \`swarm_spawn_subtask(bead_id="${next.id}", ...)\``,
+    );
   }
   if (blocked.length > 0) {
-    parts.push(`5. Unblock: ${blocked.map(s => s.id).join(", ")}`);
+    parts.push(`5. Unblock: ${blocked.map((s) => s.id).join(", ")}`);
   }
   parts.push("");
-  
+
   // Detailed subtask status
   if (inProgress.length > 0) {
     parts.push(`### 🚧 In Progress (${inProgress.length})`);
     for (const s of inProgress) {
-      const files = s.files?.length ? ` (${s.files.slice(0, 3).join(", ")}${s.files.length > 3 ? "..." : ""})` : "";
+      const files = s.files?.length
+        ? ` (${s.files.slice(0, 3).join(", ")}${s.files.length > 3 ? "..." : ""})`
+        : "";
       parts.push(`- ${s.id}: ${s.title}${files}`);
     }
     parts.push("");
   }
-  
+
   if (blocked.length > 0) {
     parts.push(`### 🚫 Blocked (${blocked.length})`);
     for (const s of blocked) {
@@ -2471,11 +2972,14 @@ function buildDynamicStateFromSnapshot(snapshot: SwarmStateSnapshot): string {
     }
     parts.push("");
   }
-  
+
   if (pending.length > 0) {
     parts.push(`### ⏳ Ready to Spawn (${pending.length})`);
-    for (const s of pending.slice(0, 5)) { // Show first 5
-      const files = s.files?.length ? ` (${s.files.slice(0, 2).join(", ")}${s.files.length > 2 ? "..." : ""})` : "";
+    for (const s of pending.slice(0, 5)) {
+      // Show first 5
+      const files = s.files?.length
+        ? ` (${s.files.slice(0, 2).join(", ")}${s.files.length > 2 ? "..." : ""})`
+        : "";
       parts.push(`- ${s.id}: ${s.title}${files}`);
     }
     if (pending.length > 5) {
@@ -2483,10 +2987,11 @@ function buildDynamicStateFromSnapshot(snapshot: SwarmStateSnapshot): string {
     }
     parts.push("");
   }
-  
+
   if (completed.length > 0) {
     parts.push(`### ✅ Completed (${completed.length})`);
-    for (const s of completed.slice(-3)) { // Show last 3
+    for (const s of completed.slice(-3)) {
+      // Show last 3
       parts.push(`- ${s.id}: ${s.title} ✓`);
     }
     if (completed.length > 3) {
@@ -2494,15 +2999,15 @@ function buildDynamicStateFromSnapshot(snapshot: SwarmStateSnapshot): string {
     }
     parts.push("");
   }
-  
+
   parts.push("---\n");
-  
+
   return parts.join("\n");
 }
 
 /**
  * Fallback detection prompt - tells the compactor what to look for
- * 
+ *
  * Used when we can't definitively detect a swarm but want to be safe.
  * The compactor can check the conversation context for these patterns.
  */
@@ -2562,10 +3067,10 @@ const SwarmPlugin: Plugin = async (
   // CRITICAL: Set project directory from OpenCode input
   // Without this, CLI uses wrong database path
   projectDirectory = input.directory;
-  
+
   // Store SDK client for session message scanning during compaction
   sdkClient = input.client;
-  
+
   return {
     tool: {
       // Beads
@@ -2579,6 +3084,9 @@ const SwarmPlugin: Plugin = async (
       hive_cells,
       hive_sync,
       beads_link_thread,
+      // Session Handoff (Chainlink)
+      hive_session_start,
+      hive_session_end,
       // Swarm Mail (Embedded)
       swarmmail_init,
       swarmmail_send,
@@ -2586,6 +3094,8 @@ const SwarmPlugin: Plugin = async (
       swarmmail_read_message,
       swarmmail_reserve,
       swarmmail_release,
+      swarmmail_release_all,
+      swarmmail_release_agent,
       swarmmail_ack,
       swarmmail_health,
       // Structured
@@ -2617,6 +3127,8 @@ const SwarmPlugin: Plugin = async (
       // Structured Review
       swarm_review,
       swarm_review_feedback,
+      // Adversarial Review (VDD/Chainlink)
+      swarm_adversarial_review,
       // Skills
       skills_list,
       skills_read,
@@ -2656,7 +3168,7 @@ const SwarmPlugin: Plugin = async (
       output: CompactionOutput,
     ) => {
       const startTime = Date.now();
-      
+
       // =======================================================================
       // LOG: Compaction hook invoked - capture EVERYTHING we receive
       // =======================================================================
@@ -2719,12 +3231,15 @@ const SwarmPlugin: Plugin = async (
       // STEP 3: Merge session scan with hive detection for final confidence
       // =======================================================================
       // If session messages show high-confidence swarm tools, boost confidence
-      if (sessionScan.swarmDetected && sessionScan.reasons.some(r => r.includes("high-confidence"))) {
+      if (
+        sessionScan.swarmDetected &&
+        sessionScan.reasons.some((r) => r.includes("high-confidence"))
+      ) {
         if (detection.confidence === "none" || detection.confidence === "low") {
           detection.confidence = "high";
           detection.detected = true;
           detection.reasons.push(...sessionScan.reasons);
-          
+
           logCompaction("info", "confidence_boost_from_session_scan", {
             session_id: input.sessionID,
             original_confidence: detection.confidence,
@@ -2766,7 +3281,10 @@ const SwarmPlugin: Plugin = async (
         message_scan_contributed: sessionScan.swarmDetected,
       });
 
-      if (detection.confidence === "high" || detection.confidence === "medium") {
+      if (
+        detection.confidence === "high" ||
+        detection.confidence === "medium"
+      ) {
         // Definite or probable swarm - try LLM-powered compaction
         logCompaction("info", "swarm_detected_attempting_llm", {
           session_id: input.sessionID,
@@ -2778,14 +3296,14 @@ const SwarmPlugin: Plugin = async (
         // Hoist snapshot and queryDuration outside try block so they're available in fallback path
         let snapshot: SwarmStateSnapshot | undefined;
         let queryDuration = 0; // 0 if using projection, actual duration if using hive query
-        
+
         try {
           // =======================================================================
           // PREFER PROJECTION (ground truth from events) OVER HIVE QUERY
           // =======================================================================
           // The projection is derived from session events - it's the source of truth.
           // Hive query may show all cells closed even if swarm was active.
-          
+
           if (sessionScan.projection?.isSwarm) {
             // Use projection as primary source - convert to snapshot format
             const proj = sessionScan.projection;
@@ -2795,21 +3313,27 @@ const SwarmPlugin: Plugin = async (
                 confidence: isSwarmActive(proj) ? "high" : "medium",
                 reasons: sessionScan.reasons,
               },
-              epic: proj.epic ? {
-                id: proj.epic.id,
-                title: proj.epic.title,
-                status: proj.epic.status,
-                subtasks: Array.from(proj.subtasks.values()).map(s => ({
-                  id: s.id,
-                  title: s.title,
-                  status: s.status as "open" | "in_progress" | "blocked" | "closed",
-                  files: s.files,
-                })),
-              } : undefined,
+              epic: proj.epic
+                ? {
+                    id: proj.epic.id,
+                    title: proj.epic.title,
+                    status: proj.epic.status,
+                    subtasks: Array.from(proj.subtasks.values()).map((s) => ({
+                      id: s.id,
+                      title: s.title,
+                      status: s.status as
+                        | "open"
+                        | "in_progress"
+                        | "blocked"
+                        | "closed",
+                      files: s.files,
+                    })),
+                  }
+                : undefined,
               messages: [],
               reservations: [],
             };
-            
+
             logCompaction("info", "using_projection_as_snapshot", {
               session_id: input.sessionID,
               epic_id: proj.epic?.id,
@@ -2823,7 +3347,7 @@ const SwarmPlugin: Plugin = async (
             const queryStart = Date.now();
             snapshot = await querySwarmState(input.sessionID);
             queryDuration = Date.now() - queryStart;
-            
+
             logCompaction("info", "fallback_to_hive_query", {
               session_id: input.sessionID,
               duration_ms: queryDuration,
@@ -2833,13 +3357,15 @@ const SwarmPlugin: Plugin = async (
 
           logCompaction("info", "swarm_state_resolved", {
             session_id: input.sessionID,
-            source: sessionScan.projection?.isSwarm ? "projection" : "hive_query",
+            source: sessionScan.projection?.isSwarm
+              ? "projection"
+              : "hive_query",
             has_epic: !!snapshot.epic,
             epic_id: snapshot.epic?.id,
             epic_title: snapshot.epic?.title,
             epic_status: snapshot.epic?.status,
             subtask_count: snapshot.epic?.subtasks?.length ?? 0,
-            subtasks: snapshot.epic?.subtasks?.map(s => ({
+            subtasks: snapshot.epic?.subtasks?.map((s) => ({
               id: s.id,
               title: s.title,
               status: s.status,
@@ -2933,7 +3459,8 @@ const SwarmPlugin: Plugin = async (
               {
                 full_content: fullContent, // FULL content, not truncated
                 content_length: fullContent.length,
-                injection_method: "prompt" in output ? "output.prompt" : "output.context.push",
+                injection_method:
+                  "prompt" in output ? "output.prompt" : "output.context.push",
                 context_type: "llm_generated",
               },
             );
@@ -2980,9 +3507,11 @@ const SwarmPlugin: Plugin = async (
 
         // Level 3: Fall back to static context WITH dynamic state from snapshot
         const header = `[Swarm detected: ${detection.reasons.join(", ")}]\n\n`;
-        
+
         // Build dynamic state section if we have snapshot data
-        const dynamicState = snapshot ? buildDynamicStateFromSnapshot(snapshot) : "";
+        const dynamicState = snapshot
+          ? buildDynamicStateFromSnapshot(snapshot)
+          : "";
         const staticContent = header + dynamicState + SWARM_COMPACTION_CONTEXT;
         output.context.push(staticContent);
 
@@ -3009,7 +3538,9 @@ const SwarmPlugin: Plugin = async (
           session_id: input.sessionID,
           total_duration_ms: totalDuration,
           confidence: detection.confidence,
-          context_type: dynamicState ? "static_with_dynamic_state" : "static_swarm_context",
+          context_type: dynamicState
+            ? "static_with_dynamic_state"
+            : "static_swarm_context",
           content_length: staticContent.length,
           context_count_after: output.context.length,
           has_dynamic_state: !!dynamicState,
@@ -3066,7 +3597,7 @@ const SwarmPlugin: Plugin = async (
       logCompaction("debug", "compaction_hook_complete_final_state", {
         session_id: input.sessionID,
         output_context_count: output.context?.length ?? 0,
-        output_context_lengths: output.context?.map(c => c.length) ?? [],
+        output_context_lengths: output.context?.map((c) => c.length) ?? [],
         output_has_prompt: !!(output as any).prompt,
         output_prompt_length: (output as any).prompt?.length ?? 0,
         total_duration_ms: Date.now() - startTime,

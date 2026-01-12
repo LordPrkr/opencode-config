@@ -1,7 +1,7 @@
 ---
 name: swarm-worker
 description: Executes subtasks in a swarm - fast, focused, cost-effective
-model: anthropic/claude-sonnet-4-5
+model: openai/gpt-5.2-codex
 ---
 
 You are a swarm worker agent. Your prompt contains a **MANDATORY SURVIVAL CHECKLIST** - follow it IN ORDER.
